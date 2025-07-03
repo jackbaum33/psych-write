@@ -1,7 +1,7 @@
 # app.py
 from flask import Flask, render_template, request, send_file
 from docx import Document
-import openai, tempfile, os, platform, subprocess
+import tempfile, os, platform, subprocess
 from openai import OpenAI
 from docx2pdf import convert
 
