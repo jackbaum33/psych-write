@@ -1,3 +1,4 @@
 Flask
 python-docx
 docx2pdf
+gunicorn
