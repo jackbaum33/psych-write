@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neuropsych Report Generator</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    textarea { width: 100%; height: 5em; margin-bottom: 1em; }
+    input[type="text"], input[type="date"], input[type="number"] { width: 100%; margin-bottom: 1em; }
+    .section { margin-bottom: 2em; }
+    .test-block { margin-bottom: 1em; padding: 1em; border: 1px solid #ccc; }
+    #spinner-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.75);
+      z-index: 999; justify-content: center; align-items: center;
+    }
+    .spinner {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #4CAF50;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Generate Neuropsychological Report</h1>
+
+  <form action="/generate" method="post">
+    <div class="section">
+      <label>Name:</label><input type="text" name="name" required>
+      <label>Date of Birth:</label><input type="date" name="dob" required>
+      <label>Age:</label><input type="number" name="age" required>
+      <label>Grade:</label><input type="text" name="grade" required>
+      <label>School:</label><input type="text" name="school" required>
+      <label>Evaluation Dates:</label><input type="text" name="eval_dates" required>
+      <label>Footer Information:</label><textarea name="footer_information" placeholder="Name, Title, Liscence#"></textarea>
+    </div>
+
+    <div class="section">
+      <h3>Reason for Referral</h3>
+      <textarea name="referral"></textarea>
+
+      <h3>Family Details</h3>
+      <textarea name="family_details"></textarea>
+
+      <h3>Birth/Developmental History</h3>
+      <textarea name="birth_history"></textarea>
+
+      <h3>School History</h3>
+      <textarea name="school_history"></textarea>
+
+      <h3>Previous Evaluations</h3>
+      <textarea name="previous_evals"></textarea>
+
+      <h3>Behavioral Observations</h3>
+      <textarea name="observations"></textarea>
+
+      <h3>Recommendations</h3>
+      <textarea name="recommendations"></textarea>
+    </div>
+
+    <div class="section">
+      <h3>Appendix: Test Scores and Notes</h3>
+      <textarea name="appendix" placeholder="e.g., WISC-V: 110, BASC: average range, etc."></textarea>
+    </div>
+
+    <div class="section">
+      <h3>Tests Administered</h3>
+      <div id="test-sections">
+        <div class="test-block">
+          <label>Test Name:</label><input type="text" name="test_types" required>
+          <label>Bulleted Points:</label><textarea name="test_1_bullets"></textarea>
+        </div>
+      </div>
+      <button type="button" onclick="addTestBlock()">+ Add Another Test</button>
+    </div>
+
+    <label><input type="checkbox" name="pdf" value="true"> Download as PDF</label><br><br>
+    <button type="submit">Generate Report</button>
+  </form>
+
+  <div id="spinner-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    let testCount = 1;
+    function addTestBlock() {
+      testCount++;
+      const container = document.getElementById("test-sections");
+      const block = document.createElement("div");
+      block.className = "test-block";
+      block.innerHTML = `
+        <label>Test Name:</label><input type="text" name="test_types">
+        <label>Bulleted Points:</label><textarea name="test_${testCount}_bullets"></textarea>
+      `;
+      container.appendChild(block);
+    }
+
+    document.querySelector("form").addEventListener("submit", function () {
+      document.getElementById("spinner-overlay").style.display = "flex";
+    });
+  </script>
+</body>
+</html>
