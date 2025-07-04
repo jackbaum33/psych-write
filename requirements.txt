@@ -3,4 +3,3 @@ python-docx
 docx2pdf
 openai
 gunicorn
-json
