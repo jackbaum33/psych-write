@@ -127,13 +127,12 @@ def generate():
             pdf_path = os.path.join(tmpdir, "report.pdf")
             if sys in ["Windows", "Darwin"]:
                 convert(docx_path, pdf_path)
-            elif sys == "Linux":
-                subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", tmpdir, docx_path], check=True)
+                return send_file(pdf_path, as_attachment=True, download_name="neuropsych_report.pdf")
             else:
-                return "Unsupported OS for PDF conversion", 500
-            return send_file(pdf_path, as_attachment=True, download_name="neuropsych_report.pdf")
+                return "PDF conversion is only supported on macOS or Windows environments.", 400
         else:
             return send_file(docx_path, as_attachment=True, download_name="neuropsych_report.docx")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
