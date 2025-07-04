@@ -4,6 +4,7 @@ from docx import Document
 import tempfile, os, platform, subprocess
 from openai import OpenAI
 from docx2pdf import convert
+import json
 
 client = OpenAI()
 
@@ -19,37 +20,31 @@ SECTIONS = {
     "recommendations": "Recommendations"
 }
 
-def generate_paragraph(heading, bullets, appendix):
-    bullet_text = "\n".join(f"- {b}" for b in bullets)
-    prompt = (
-        f"Using the following bullet points, write a professional paragraph for the {heading} section of a neuropsychological evaluation report. "
-        f"Also incorporate relevant information from the test scores below if applicable.\n\n"
-        f"Please do not answer with any text except the relevant paragraph.\n\n"
-        f"Bullet Points:\n{bullet_text}\n\n"
-        f"Appendix/Test Scores:\n{appendix}\n\n"
-        f"Professional Paragraph:"
+def create_batched_prompt(sections, appendix):
+    entries = []
+    for section in sections:
+        entries.append({
+            "heading": section["heading"],
+            "bullets": section["bullets"]
+        })
+    return (
+        f"Generate a JSON object where each key is the heading of a neuropsychological report section and the value is a paragraph based on the given bullet points and appendix.\n"
+        f"Only return JSON.\n\n"
+        f"Data: {json.dumps({'sections': entries, 'appendix': appendix})}"
     )
-    response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.7,
-    )
-    return response.choices[0].message.content.strip()
 
-def generate_test_analysis(test_name, appendix):
-    prompt = (
-        f"Please write a paragraph analyzing the results and significance of the following neuropsychological test: {test_name}. "
-        f"Use the appendix information below to guide the interpretation if relevant.\n\n"
-        f"Please do not answer with any text except the relevant paragraph.\n\n"
-        f"Appendix/Test Scores:\n{appendix}\n\n"
-        f"Professional Analysis:"
+def create_test_prompt(test_sections, appendix):
+    entries = []
+    for test in test_sections:
+        entries.append({
+            "test_name": test["test_name"],
+            "bullets": test["bullets"]
+        })
+    return (
+        f"Generate a JSON object where each key is the test name and the value is a paragraph interpreting the bullet points and appendix.\n"
+        f"Only return JSON.\n\n"
+        f"Data: {json.dumps({'tests': entries, 'appendix': appendix})}"
     )
-    response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.7,
-    )
-    return response.choices[0].message.content.strip()
 
 @app.route("/")
 def index():
@@ -71,30 +66,54 @@ def generate():
     footer_information = data.get("footer_information", psychologist_name)
     appendix = data.get("appendix", "")
 
-    # AI-generated sections
+    # Prepare section bullets
+    sections_with_bullets = []
     for key, label in SECTIONS.items():
         bullets = [b for b in data.getlist(key) if b.strip()]
         if bullets:
-            paragraph = generate_paragraph(label, bullets, appendix)
+            sections_with_bullets.append({"key": key, "heading": label, "bullets": bullets})
+
+    # Generate all paragraphs in one call
+    if sections_with_bullets:
+        prompt = create_batched_prompt(sections_with_bullets, appendix)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        paragraphs_json = json.loads(response.choices[0].message.content.strip())
+
+        for section in sections_with_bullets:
+            key = section["key"]
+            heading = section["heading"]
+            paragraph_text = paragraphs_json.get(heading, "")
             placeholder = f"{{{{{key}_paragraph}}}}"
             for paragraph_obj in doc.paragraphs:
                 if placeholder in paragraph_obj.text:
-                    paragraph_obj.text = paragraph_obj.text.replace(placeholder, paragraph)
+                    paragraph_obj.text = paragraph_obj.text.replace(placeholder, paragraph_text)
 
-    # Combined test paragraphs
+    # Prepare test sections
     test_sections = [ts for ts in data.getlist("test_types") if ts.strip()]
-    test_texts = []
+    test_data = []
     for i, test_name in enumerate(test_sections, start=1):
         test_bullets = [b for b in data.getlist(f"test_{i}_bullets") if b.strip()]
-        section_text = f"\n\n{test_name}:\n"
-        if test_bullets:
-            paragraph = generate_paragraph(f"{test_name} Results", test_bullets, appendix)
-            section_text += paragraph + "\n\n"
-        analysis = generate_test_analysis(test_name, appendix)
-        section_text += analysis
-        test_texts.append(section_text)
+        test_data.append({"test_name": test_name, "bullets": test_bullets})
 
-    full_test_section = "\n\n".join(test_texts)
+    # Generate test paragraphs in one call
+    full_test_section = ""
+    if test_data:
+        test_prompt = create_test_prompt(test_data, appendix)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": test_prompt}],
+            temperature=0.7,
+        )
+        test_paragraphs = json.loads(response.choices[0].message.content.strip())
+        for test in test_data:
+            test_name = test["test_name"]
+            paragraph = test_paragraphs.get(test_name, "")
+            full_test_section += f"\n\n{test_name}:\n{paragraph}\n"
+
     test_list_string = ", ".join(test_sections)
 
     for paragraph_obj in doc.paragraphs:
@@ -105,7 +124,7 @@ def generate():
         if "{{footer_information}}" in paragraph_obj.text:
             paragraph_obj.text = paragraph_obj.text.replace("{{footer_information}}", footer_information)
 
-    # Add footer with psychologist name (optional if footer field is used)
+    # Footer
     section = doc.sections[-1]
     footer = section.footer
     footer_paragraph = footer.paragraphs[0]
