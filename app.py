@@ -1,10 +1,8 @@
-# app.py
 from flask import Flask, render_template, request, send_file
 from docx import Document
 import tempfile, os, platform, subprocess
 from openai import OpenAI
 from docx2pdf import convert
-import json
 
 client = OpenAI()
 
@@ -20,31 +18,36 @@ SECTIONS = {
     "recommendations": "Recommendations"
 }
 
-def create_batched_prompt(sections, appendix):
-    entries = []
-    for section in sections:
-        entries.append({
-            "heading": section["heading"],
-            "bullets": section["bullets"]
-        })
-    return (
-        f"Generate a JSON object where each key is the heading of a neuropsychological report section and the value is a paragraph based on the given bullet points and appendix.\n"
-        f"Only return JSON.\n\n"
-        f"Data: {json.dumps({'sections': entries, 'appendix': appendix})}"
+def batched_generate_paragraphs(section_prompts, appendix):
+    combined_prompt = "".join(
+        f"### {i+1}. {label}\n{content}\n" for i, (content, label) in enumerate(section_prompts)
     )
+    prompt = (
+        f"You are a clinical psychologist drafting a neuropsychological report. For each section below, write a clear, professional paragraph.\n"
+        f"Incorporate relevant insights from the test appendix where applicable.\n"
+        f"Respond ONLY with the numbered paragraphs in the same order.\n"
+        f"\n{combined_prompt}\n\nAppendix/Test Scores:\n{appendix}\n"
+    )
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    return [p.strip() for p in response.choices[0].message.content.strip().split("\n") if p.strip()]
 
-def create_test_prompt(test_sections, appendix):
-    entries = []
-    for test in test_sections:
-        entries.append({
-            "test_name": test["test_name"],
-            "bullets": test["bullets"]
-        })
-    return (
-        f"Generate a JSON object where each key is the test name and the value is a paragraph interpreting the bullet points and appendix.\n"
-        f"Only return JSON.\n\n"
-        f"Data: {json.dumps({'tests': entries, 'appendix': appendix})}"
+def generate_test_analysis(test_name, appendix):
+    prompt = (
+        f"Please write a paragraph analyzing the results and significance of the following neuropsychological test: {test_name}. "
+        f"Use the appendix information below to guide the interpretation if relevant.\n\n"
+        f"Appendix/Test Scores:\n{appendix}\n"
+        f"Professional Analysis:"
     )
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    return response.choices[0].message.content.strip()
 
 @app.route("/")
 def index():
@@ -55,7 +58,6 @@ def generate():
     data = request.form
     doc = Document("doc_templates/report_template.docx")
 
-    # Basic fields
     for field in ["name", "dob", "age", "grade", "school", "eval_dates"]:
         placeholder = f"{{{{{field}}}}}"
         for paragraph in doc.paragraphs:
@@ -66,54 +68,41 @@ def generate():
     footer_information = data.get("footer_information", psychologist_name)
     appendix = data.get("appendix", "")
 
-    # Prepare section bullets
-    sections_with_bullets = []
+    section_prompts = []
     for key, label in SECTIONS.items():
-        bullets = [b for b in data.getlist(key) if b.strip()]
-        if bullets:
-            sections_with_bullets.append({"key": key, "heading": label, "bullets": bullets})
+        text = data.get(key, "").strip()
+        if text:
+            section_prompts.append((f"{label} Section\n{text}", f"{{{{{key}_paragraph}}}}"))
 
-    # Generate all paragraphs in one call
-    if sections_with_bullets:
-        prompt = create_batched_prompt(sections_with_bullets, appendix)
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-        )
-        paragraphs_json = json.loads(response.choices[0].message.content.strip())
+    paragraphs = batched_generate_paragraphs(section_prompts, appendix)
+    for (_, placeholder), paragraph in zip(section_prompts, paragraphs):
+        for paragraph_obj in doc.paragraphs:
+            if placeholder in paragraph_obj.text:
+                paragraph_obj.text = paragraph_obj.text.replace(placeholder, paragraph)
 
-        for section in sections_with_bullets:
-            key = section["key"]
-            heading = section["heading"]
-            paragraph_text = paragraphs_json.get(heading, "")
-            placeholder = f"{{{{{key}_paragraph}}}}"
-            for paragraph_obj in doc.paragraphs:
-                if placeholder in paragraph_obj.text:
-                    paragraph_obj.text = paragraph_obj.text.replace(placeholder, paragraph_text)
-
-    # Prepare test sections
+    # Handle test sections
     test_sections = [ts for ts in data.getlist("test_types") if ts.strip()]
-    test_data = []
+    test_texts = []
     for i, test_name in enumerate(test_sections, start=1):
         test_bullets = [b for b in data.getlist(f"test_{i}_bullets") if b.strip()]
-        test_data.append({"test_name": test_name, "bullets": test_bullets})
+        section_text = f"\n\n{test_name}:\n"
+        if test_bullets:
+            bullet_text = "\n".join(f"- {b}" for b in test_bullets)
+            test_prompt = (
+                f"Write a professional paragraph summarizing the following test and bullet points.\n"
+                f"Test: {test_name}\nBullets:\n{bullet_text}\n\nAppendix:\n{appendix}"
+            )
+            test_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": test_prompt}],
+                temperature=0.7,
+            )
+            section_text += test_response.choices[0].message.content.strip() + "\n"
+        analysis = generate_test_analysis(test_name, appendix)
+        section_text += analysis
+        test_texts.append(section_text)
 
-    # Generate test paragraphs in one call
-    full_test_section = ""
-    if test_data:
-        test_prompt = create_test_prompt(test_data, appendix)
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": test_prompt}],
-            temperature=0.7,
-        )
-        test_paragraphs = json.loads(response.choices[0].message.content.strip())
-        for test in test_data:
-            test_name = test["test_name"]
-            paragraph = test_paragraphs.get(test_name, "")
-            full_test_section += f"\n\n{test_name}:\n{paragraph}\n"
-
+    full_test_section = "\n\n".join(test_texts)
     test_list_string = ", ".join(test_sections)
 
     for paragraph_obj in doc.paragraphs:
@@ -124,7 +113,6 @@ def generate():
         if "{{footer_information}}" in paragraph_obj.text:
             paragraph_obj.text = paragraph_obj.text.replace("{{footer_information}}", footer_information)
 
-    # Footer
     section = doc.sections[-1]
     footer = section.footer
     footer_paragraph = footer.paragraphs[0]
