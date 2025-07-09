@@ -105,14 +105,20 @@ def generate():
     full_test_section = "\n\n".join(test_texts)
     test_list_string = ", ".join(test_sections)
 
-    for paragraph_obj in doc.paragraphs:
-        if "{{test_paragraphs}}" in paragraph_obj.text:
-            paragraph_obj.text = paragraph_obj.text.replace("{{test_paragraphs}}", full_test_section)
-        if "{{test_list}}" in paragraph_obj.text:
-            paragraph_obj.text = paragraph_obj.text.replace("{{test_list}}", test_list_string)
-        if "{{footer_information}}" in paragraph_obj.text:
-            paragraph_obj.text = paragraph_obj.text.replace("{{footer_information}}", footer_information)
+    # Final placeholder replacements
+    REPLACEMENTS = {
+        "{{test_paragraphs}}": full_test_section,
+        "{{test_list}}": test_list_string,
+        "{{footer_information}}": footer_information,
+        "{{appendix}}": appendix,
+    }
 
+    for paragraph_obj in doc.paragraphs:
+        for placeholder, value in REPLACEMENTS.items():
+            if placeholder in paragraph_obj.text:
+                paragraph_obj.text = paragraph_obj.text.replace(placeholder, value)
+
+    # Optional footer tag
     section = doc.sections[-1]
     footer = section.footer
     footer_paragraph = footer.paragraphs[0]
@@ -132,7 +138,6 @@ def generate():
                 return "PDF conversion is only supported on macOS or Windows environments.", 400
         else:
             return send_file(docx_path, as_attachment=True, download_name="neuropsych_report.docx")
-
 
 if __name__ == "__main__":
     app.run(debug=True)
