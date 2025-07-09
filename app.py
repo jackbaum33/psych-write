@@ -142,7 +142,7 @@ def generate():
             else:
                 return "PDF conversion is only supported on macOS or Windows environments.", 400
         else:
-            return send_file(docx_path, as_attachment=True, download_name="neuropsych_report.docx")
+            return send_file(docx_path, as_attachment=True, download_name=f"neuropsych_report_for_{psychologist_name}_about_{data.get("name","")}.docx")
 
 if __name__ == "__main__":
     app.run(debug=True)

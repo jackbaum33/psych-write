@@ -32,48 +32,38 @@
       padding: 10px;
       border: 1px dashed #ccc;
     }
-    .inline {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 20px;
-    }
     button {
       padding: 10px 20px;
       font-size: 16px;
     }
+    .spinner {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #555;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #loading, #thankYou {
+      display: none;
+      text-align: center;
+      margin-top: 30px;
+    }
+    a {
+      color: #007bff;
+      text-decoration: underline;
+    }
   </style>
-  <script>
-    function addTest() {
-      const testsContainer = document.getElementById("tests");
-      const index = testsContainer.children.length + 1;
-      const block = document.createElement("div");
-      block.className = "test-block";
-
-      block.innerHTML = `
-        <label>Test ${index} Name:</label>
-        <input type="text" name="test_types" required />
-        <label>Bullet Points for Test ${index}:</label>
-        <div id="test_${index}_bullets">
-          <input type="text" name="test_${index}_bullets" placeholder="Bullet point" />
-        </div>
-        <button type="button" onclick="addTestBullet(${index})">Add Bullet</button>
-      `;
-      testsContainer.appendChild(block);
-    }
-
-    function addTestBullet(index) {
-      const container = document.getElementById(`test_${index}_bullets`);
-      const input = document.createElement("input");
-      input.name = `test_${index}_bullets`;
-      input.placeholder = "Bullet point";
-      container.appendChild(input);
-    }
-  </script>
 </head>
 <body>
   <h1>Neuropsychological Report Generator</h1>
-  <form action="/generate" method="POST">
+
+  <form id="reportForm">
     <label>Name:</label>
     <input type="text" name="name" required />
 
@@ -123,7 +113,93 @@
       </label>
     </div>
 
-    <button type="submit">Generate Report</button>
+    <button type="button" onclick="submitForm()">Generate Report</button>
   </form>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div style="margin-top:10px;">Generating report...</div>
+  </div>
+
+  <div id="thankYou">
+    <p><strong>Thank you for waiting!</strong> Your report should have automatically downloaded. If not, <a id="downloadLink" href="#" download>click here</a> to download it.</p>
+    <p><a href="/">To generate a new report, click here</a></p>
+  </div>
+
+  <script>
+    function addTest() {
+      const testsContainer = document.getElementById("tests");
+      const index = testsContainer.children.length + 1;
+      const block = document.createElement("div");
+      block.className = "test-block";
+
+      block.innerHTML = `
+        <label>Test ${index} Name:</label>
+        <input type="text" name="test_types" required />
+        <label>Bullet Points for Test ${index}:</label>
+        <div id="test_${index}_bullets">
+          <input type="text" name="test_${index}_bullets" placeholder="Bullet point" />
+        </div>
+        <button type="button" onclick="addTestBullet(${index})">Add Bullet</button>
+      `;
+      testsContainer.appendChild(block);
+    }
+
+    function addTestBullet(index) {
+      const container = document.getElementById(`test_${index}_bullets`);
+      const input = document.createElement("input");
+      input.name = `test_${index}_bullets`;
+      input.placeholder = "Bullet point";
+      container.appendChild(input);
+    }
+
+    async function submitForm() {
+  const form = document.getElementById("reportForm");
+  const formData = new FormData(form);
+  const loading = document.getElementById("loading");
+  const thankYou = document.getElementById("thankYou");
+  const downloadLink = document.getElementById("downloadLink");
+
+  loading.style.display = "block";
+  form.style.display = "none";
+
+  try {
+    const response = await fetch("/generate", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!response.ok) {
+      alert("Something went wrong generating the report.");
+      form.style.display = "block";
+      loading.style.display = "none";
+      return;
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get("Content-Disposition");
+    const filename = contentDisposition?.split("filename=")[1]?.replace(/"/g, '') || "report.docx";
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+
+    // Show thank you message and fallback link
+    downloadLink.href = url;
+    downloadLink.download = filename;
+    thankYou.style.display = "block";
+
+  } catch (error) {
+    alert("Failed to generate report.");
+    console.error(error);
+    form.style.display = "block";
+  } finally {
+    loading.style.display = "none";
+    form.reset(); 
+  }
+}
+  </script>
 </body>
 </html>
