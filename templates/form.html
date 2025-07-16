@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Neuropsychological Report Generator</title>
   <style>
     :root {
@@ -120,24 +120,28 @@
       margin-bottom: 20px;
     }
 
-    .toggle-container label {
-      font-weight: normal;
+    .toggle-container svg {
       cursor: pointer;
+      width: 24px;
+      height: 24px;
+      vertical-align: middle;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="toggle-container">
-      <label>
-        <input type="checkbox" id="modeToggle" />
-        Light Mode
-      </label>
+    <div class="toggle-container" id="themeToggle" onclick="toggleTheme()" title="Toggle Theme">
+      <svg id="iconMoon" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" stroke="currentColor" stroke-width="2"/>
+      </svg>
+      <svg id="iconSun" width="24" height="24" viewBox="0 0 24 24" fill="none" style="display:none;">
+        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M17.66 17.66l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M17.66 6.34l1.42-1.42" stroke="currentColor" stroke-width="2"/>
+      </svg>
     </div>
 
     <h1 style="text-align: center;">Neuropsychological Report Generator</h1>
     <h5 style="text-align: center;">Powered by Psych-Write</h5>
-
     <form id="reportForm">
       <label>Name:</label>
       <input type="text" name="name" required />
@@ -203,93 +207,32 @@
       <p><a href="/">To generate a new report, click here</a></p>
     </div>
   </div>
+  </div>
 
   <script>
-    function addTest() {
-      const testsContainer = document.getElementById("tests");
-      const index = testsContainer.children.length + 1;
-      const block = document.createElement("div");
-      block.className = "test-block";
+    const iconSun = document.getElementById("iconSun");
+    const iconMoon = document.getElementById("iconMoon");
 
-      block.innerHTML = `
-        <label>Test ${index} Name:</label>
-        <input type="text" name="test_types" required />
-        <label>Bullet Points for Test ${index}:</label>
-        <div id="test_${index}_bullets">
-          <input type="text" name="test_${index}_bullets" placeholder="Bullet point" />
-        </div>
-        <button type="button" onclick="addTestBullet(${index})">Add Bullet</button>
-      `;
-      testsContainer.appendChild(block);
-    }
-
-    function addTestBullet(index) {
-      const container = document.getElementById(`test_${index}_bullets`);
-      const input = document.createElement("input");
-      input.name = `test_${index}_bullets`;
-      input.placeholder = "Bullet point";
-      container.appendChild(input);
-    }
-
-    async function submitForm() {
-      const form = document.getElementById("reportForm");
-      const formData = new FormData(form);
-      const loading = document.getElementById("loading");
-      const thankYou = document.getElementById("thankYou");
-      const downloadLink = document.getElementById("downloadLink");
-
-      loading.style.display = "block";
-      form.style.display = "none";
-
-      try {
-        const response = await fetch("/generate", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          alert("Something went wrong generating the report.");
-          form.style.display = "block";
-          loading.style.display = "none";
-          return;
-        }
-
-        const blob = await response.blob();
-        const contentDisposition = response.headers.get("Content-Disposition");
-        const filename = contentDisposition?.split("filename=")[1]?.replace(/"/g, '') || "report.docx";
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        link.click();
-
-        downloadLink.href = url;
-        downloadLink.download = filename;
-        thankYou.style.display = "block";
-
-      } catch (error) {
-        alert("Failed to generate report.");
-        console.error(error);
-        form.style.display = "block";
-      } finally {
-        loading.style.display = "none";
-        form.reset();
+    function setTheme(mode) {
+      if (mode === "light") {
+        document.body.classList.add("light");
+        iconSun.style.display = "inline";
+        iconMoon.style.display = "none";
+      } else {
+        document.body.classList.remove("light");
+        iconSun.style.display = "none";
+        iconMoon.style.display = "inline";
       }
+      localStorage.setItem("mode", mode);
     }
 
-    // Theme toggle logic
-    const modeToggle = document.getElementById("modeToggle");
-    const savedMode = localStorage.getItem("mode");
-    if (savedMode === "light") {
-      document.body.classList.add("light");
-      modeToggle.checked = true;
+    function toggleTheme() {
+      const current = document.body.classList.contains("light") ? "light" : "dark";
+      setTheme(current === "light" ? "dark" : "light");
     }
 
-    modeToggle.addEventListener("change", () => {
-      document.body.classList.toggle("light");
-      localStorage.setItem("mode", document.body.classList.contains("light") ? "light" : "dark");
-    });
+    const saved = localStorage.getItem("mode");
+    setTheme(saved === "light" ? "light" : "dark");
   </script>
 </body>
 </html>
