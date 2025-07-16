@@ -7,123 +7,161 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      max-width: 800px;
+      margin: 0;
+      padding: 40px 20px;
+      background-color: #121212;
+      color: #f0f0f0;
+      display: flex;
+      justify-content: center;
     }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+    }
+
     input, textarea {
       width: 100%;
       margin-bottom: 10px;
-      padding: 8px;
+      padding: 10px;
       box-sizing: border-box;
+      background-color: #1e1e1e;
+      color: #f0f0f0;
+      border: 1px solid #333;
+      border-radius: 4px;
     }
+
     label {
       font-weight: bold;
       display: block;
       margin-top: 20px;
     }
+
     .section {
       margin-top: 30px;
       padding: 15px;
-      border: 1px solid #ccc;
+      border: 1px solid #333;
       border-radius: 5px;
+      background-color: #1a1a1a;
     }
+
     .test-block {
       margin-bottom: 20px;
       padding: 10px;
-      border: 1px dashed #ccc;
+      border: 1px dashed #444;
+      background-color: #1a1a1a;
     }
+
     button {
       padding: 10px 20px;
       font-size: 16px;
+      background-color: #007bff;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
     }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
     .spinner {
       border: 6px solid #f3f3f3;
-      border-top: 6px solid #555;
+      border-top: 6px solid #007bff;
       border-radius: 50%;
       width: 40px;
       height: 40px;
       animation: spin 1s linear infinite;
       margin: 0 auto;
     }
+
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
     #loading, #thankYou {
       display: none;
       text-align: center;
       margin-top: 30px;
     }
+
     a {
-      color: #007bff;
+      color: #66ccff;
       text-decoration: underline;
     }
+
   </style>
 </head>
 <body>
-  <h1>Neuropsychological Report Generator</h1>
+  <div class="container">
+    <h1 style="text-align: center;">Neuropsychological Report Generator</h1>
+    <h4 style="text-align: center;">Powered by Psych-Write</h4>
+    <form id="reportForm">
+      <label>Name:</label>
+      <input type="text" name="name" required />
 
-  <form id="reportForm">
-    <label>Name:</label>
-    <input type="text" name="name" required />
+      <label>Date of Birth:</label>
+      <input type="text" name="dob" required />
 
-    <label>Date of Birth:</label>
-    <input type="text" name="dob" required />
+      <label>Dates of Evaluation:</label>
+      <input type="text" name="eval_dates" required />
 
-    <label>Dates of Evaluation:</label>
-    <input type="text" name="eval_dates" required />
+      <label>Grade:</label>
+      <input type="text" name="grade" />
 
-    <label>Grade:</label>
-    <input type="text" name="grade" />
+      <label>School:</label>
+      <input type="text" name="school" />
 
-    <label>School:</label>
-    <input type="text" name="school" />
+      <label>Age:</label>
+      <input type="text" name="age" />
 
-    <label>Age:</label>
-    <input type="text" name="age" />
+      <label>Psychologist Name:</label>
+      <input type="text" name="psychologist_name" />
 
-    <label>Psychologist Name:</label>
-    <input type="text" name="psychologist_name" />
+      <label>Footer Information:</label>
+      <textarea name="footer_information" rows="2" placeholder="Dr. Name, Credentials\nLicense # ..."></textarea>
 
-    <label>Footer Information:</label>
-    <textarea name="footer_information" rows="2" placeholder="Dr. Name, Credentials\nLicense # ..."></textarea>
+      <div class="section">
+        <label>Appendix/Test Scores:</label>
+        <textarea name="appendix" rows="6" required></textarea>
+      </div>
 
-    <div class="section">
-      <label>Appendix/Test Scores:</label>
-      <textarea name="appendix" rows="6" required></textarea>
+      {% for key, label in sections.items() %}
+      <div class="section">
+        <label>{{ label }}:</label>
+        <textarea name="{{ key }}" rows="5" placeholder="Paste relevant info for {{ label }}"></textarea>
+      </div>
+      {% endfor %}
+
+      <div class="section">
+        <h3>Tests Administered</h3>
+        <div id="tests"></div>
+        <button type="button" onclick="addTest()">Add Test</button>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <label style="font-weight: normal;">
+          <input type="checkbox" name="pdf" style="width: auto; margin-right: 8px;" />
+          Generate as PDF
+        </label>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px;">
+        <button type="button" onclick="submitForm()">Generate Report</button>
+      </div>
+    </form>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <div style="margin-top:10px;">Generating report...</div>
     </div>
 
-    {% for key, label in sections.items() %}
-    <div class="section">
-      <label>{{ label }}:</label>
-      <textarea name="{{ key }}" rows="5" placeholder="Paste relevant info for {{ label }}"></textarea>
+    <div id="thankYou">
+      <p><strong>Thank you for waiting!</strong> Your report should have automatically downloaded. If not, <a id="downloadLink" href="#" download>click here</a> to download it.</p>
+      <p><a href="/">To generate a new report, click here</a></p>
     </div>
-    {% endfor %}
-
-    <div class="section">
-      <h3>Tests Administered</h3>
-      <div id="tests"></div>
-      <button type="button" onclick="addTest()">Add Test</button>
-    </div>
-
-    <div style="margin-top: 20px;">
-      <label style="font-weight: normal;">
-        <input type="checkbox" name="pdf" style="width: auto; margin-right: 8px;" />
-        Generate as PDF
-      </label>
-    </div>
-
-    <button type="button" onclick="submitForm()">Generate Report</button>
-  </form>
-
-  <div id="loading">
-    <div class="spinner"></div>
-    <div style="margin-top:10px;">Generating report...</div>
-  </div>
-
-  <div id="thankYou">
-    <p><strong>Thank you for waiting!</strong> Your report should have automatically downloaded. If not, <a id="downloadLink" href="#" download>click here</a> to download it.</p>
-    <p><a href="/">To generate a new report, click here</a></p>
   </div>
 
   <script>
@@ -154,52 +192,51 @@
     }
 
     async function submitForm() {
-  const form = document.getElementById("reportForm");
-  const formData = new FormData(form);
-  const loading = document.getElementById("loading");
-  const thankYou = document.getElementById("thankYou");
-  const downloadLink = document.getElementById("downloadLink");
+      const form = document.getElementById("reportForm");
+      const formData = new FormData(form);
+      const loading = document.getElementById("loading");
+      const thankYou = document.getElementById("thankYou");
+      const downloadLink = document.getElementById("downloadLink");
 
-  loading.style.display = "block";
-  form.style.display = "none";
+      loading.style.display = "block";
+      form.style.display = "none";
 
-  try {
-    const response = await fetch("/generate", {
-      method: "POST",
-      body: formData
-    });
+      try {
+        const response = await fetch("/generate", {
+          method: "POST",
+          body: formData
+        });
 
-    if (!response.ok) {
-      alert("Something went wrong generating the report.");
-      form.style.display = "block";
-      loading.style.display = "none";
-      return;
+        if (!response.ok) {
+          alert("Something went wrong generating the report.");
+          form.style.display = "block";
+          loading.style.display = "none";
+          return;
+        }
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get("Content-Disposition");
+        const filename = contentDisposition?.split("filename=")[1]?.replace(/"/g, '') || "report.docx";
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        thankYou.style.display = "block";
+
+      } catch (error) {
+        alert("Failed to generate report.");
+        console.error(error);
+        form.style.display = "block";
+      } finally {
+        loading.style.display = "none";
+        form.reset();
+      }
     }
-
-    const blob = await response.blob();
-    const contentDisposition = response.headers.get("Content-Disposition");
-    const filename = contentDisposition?.split("filename=")[1]?.replace(/"/g, '') || "report.docx";
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-
-    // Show thank you message and fallback link
-    downloadLink.href = url;
-    downloadLink.download = filename;
-    thankYou.style.display = "block";
-
-  } catch (error) {
-    alert("Failed to generate report.");
-    console.error(error);
-    form.style.display = "block";
-  } finally {
-    loading.style.display = "none";
-    form.reset(); 
-  }
-}
   </script>
 </body>
 </html>
