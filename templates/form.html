@@ -211,28 +211,30 @@
 
   <script>
     const iconSun = document.getElementById("iconSun");
-    const iconMoon = document.getElementById("iconMoon");
+  const iconMoon = document.getElementById("iconMoon");
+  const savedMode = localStorage.getItem("mode");
 
-    function setTheme(mode) {
-      if (mode === "light") {
-        document.body.classList.add("light");
-        iconSun.style.display = "inline";
-        iconMoon.style.display = "none";
-      } else {
-        document.body.classList.remove("light");
-        iconSun.style.display = "none";
-        iconMoon.style.display = "inline";
-      }
-      localStorage.setItem("mode", mode);
+  function applyTheme(mode) {
+    if (mode === "light") {
+      document.body.classList.add("light");
+      iconSun.style.display = "none";
+      iconMoon.style.display = "block";
+    } else {
+      document.body.classList.remove("light");
+      iconSun.style.display = "block";
+      iconMoon.style.display = "none";
     }
+  }
 
-    function toggleTheme() {
-      const current = document.body.classList.contains("light") ? "light" : "dark";
-      setTheme(current === "light" ? "dark" : "light");
-    }
+  function toggleTheme() {
+    const isLight = document.body.classList.contains("light");
+    const newMode = isLight ? "dark" : "light";
+    localStorage.setItem("mode", newMode);
+    applyTheme(newMode);
+  }
 
-    const saved = localStorage.getItem("mode");
-    setTheme(saved === "light" ? "light" : "dark");
+  // Initial load
+  applyTheme(savedMode || "dark");
   </script>
 </body>
 </html>
