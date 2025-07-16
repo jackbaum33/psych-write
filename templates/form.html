@@ -210,7 +210,33 @@
   </div>
 
   <script>
-    const iconSun = document.getElementById("iconSun");
+       function addTest() {
+    const testsContainer = document.getElementById("tests");
+    const index = testsContainer.children.length + 1;
+    const block = document.createElement("div");
+    block.className = "test-block";
+
+    block.innerHTML = `
+      <label>Test ${index} Name:</label>
+      <input type="text" name="test_types" required />
+      <label>Bullet Points for Test ${index}:</label>
+      <div id="test_${index}_bullets">
+        <input type="text" name="test_${index}_bullets" placeholder="Bullet point" />
+      </div>
+      <button type="button" onclick="addTestBullet(${index})">Add Bullet</button>
+    `;
+    testsContainer.appendChild(block);
+  }
+
+  function addTestBullet(index) {
+    const container = document.getElementById(`test_${index}_bullets`);
+    const input = document.createElement("input");
+    input.name = `test_${index}_bullets`;
+    input.placeholder = "Bullet point";
+    container.appendChild(input);
+  }
+
+  const iconSun = document.getElementById("iconSun");
   const iconMoon = document.getElementById("iconMoon");
   const savedMode = localStorage.getItem("mode");
 
