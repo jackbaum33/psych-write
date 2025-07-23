@@ -4,3 +4,4 @@ docx2pdf
 openai
 gunicorn
 stripe
+dotenv
