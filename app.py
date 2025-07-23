@@ -1,12 +1,23 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, jsonify, send_file
 from docx import Document
-import tempfile, os, platform
+import tempfile, os, platform, re
 from openai import OpenAI
 from docx2pdf import convert
-import re
+import stripe
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
+# Initialize
 client = OpenAI()
 app = Flask(__name__)
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+stored_sessions = {}  # Stores form input by session ID
+report_store = {}     # Stores generated report path by session ID
 
 SECTIONS = {
     "referral": "Reason for Referral",
@@ -66,30 +77,96 @@ def generate_test_analysis(test_name, appendix):
 def index():
     return render_template("form.html", sections=SECTIONS)
 
-@app.route("/generate", methods=["POST"])
-def generate():
-    data = request.form
+@app.route("/store", methods=["POST"])
+def store():
+    session_id = request.form.get("session_id")
+    form_data = request.form.to_dict(flat=False)
+    stored_sessions[session_id] = form_data
+    return "stored"
+
+@app.route("/create-checkout-session", methods=["POST"])
+def create_checkout():
+    data = request.get_json()
+    session_id = data.get("session_id")
+
+    session = stripe.checkout.Session.create(
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {'name': 'Neuropsych Report Generation'},
+                'unit_amount': 1500,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        success_url=f"http://psych-write.com/success?session_id={session_id}",
+        cancel_url="http://psych-write.com/",
+        metadata={"session_id": session_id}
+    )
+    return jsonify({"url": session.url})
+
+@app.route("/webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get('stripe-signature')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        return "Invalid payload", 400
+    except stripe.error.SignatureVerificationError:
+        return "Invalid signature", 400
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        session_id = session["metadata"]["session_id"]
+
+        data = stored_sessions.get(session_id)
+        if not data:
+            return "Missing stored data", 400
+
+        report_path = generate_report(data)
+        report_store[session_id] = report_path
+
+    return "", 200
+
+@app.route("/success")
+def success():
+    session_id = request.args.get("session_id")
+    path = report_store.get(session_id)
+    if path:
+        return send_file(path, as_attachment=True)
+    else:
+        return "No report found for session.", 404
+
+@app.route("/check-report")
+def check_report():
+    session_id = request.args.get("session_id")
+    pdf_path = report_store.get(session_id)
+    if pdf_path and os.path.exists(pdf_path):
+        filename = "neuropsych_report.pdf" if pdf_path.endswith(".pdf") else "neuropsych_report.docx"
+        return send_file(pdf_path, as_attachment=True, download_name=filename)
+    return "Not ready", 404
+
+def generate_report(data):
     doc = Document("doc_templates/report_template.docx")
 
-    psychologist_name = data.get("psychologist_name", "")
-    footer_information = data.get("footer_information", psychologist_name)
-    appendix = data.get("appendix", "")
+    psychologist_name = data.get("psychologist_name", [""])[0]
+    footer_information = data.get("footer_information", [psychologist_name])[0]
+    appendix = data.get("appendix", [""])[0]
 
     section_prompts = []
     for key, label in SECTIONS.items():
-        text = data.get(key, "").strip()
+        text = data.get(key, [""])[0].strip()
         if text:
             section_prompts.append((f"{label} Section\n{text}", f"{{{{{key}_paragraph}}}}"))
 
     paragraphs = batched_generate_paragraphs(section_prompts, appendix)
 
-    if len(paragraphs) != len(section_prompts):
-        raise ValueError(f"Mismatch: expected {len(section_prompts)} paragraphs, got {len(paragraphs)}")
-
-    test_sections = [ts for ts in data.getlist("test_types") if ts.strip()]
+    test_sections = [ts for ts in data.get("test_types", []) if ts.strip()]
     test_texts = []
     for i, test_name in enumerate(test_sections, start=1):
-        test_bullets = [b for b in data.getlist(f"test_{i}_bullets") if b.strip()]
+        test_bullets = [b for b in data.get(f"test_{i}_bullets", []) if b.strip()]
         section_text = f"\n\n{test_name}:\n"
         if test_bullets:
             bullet_text = "\n".join(f"- {b}" for b in test_bullets)
@@ -119,31 +196,28 @@ def generate():
     }
 
     for field in ["name", "dob", "age", "grade", "school", "eval_dates"]:
-        replacements[f"{{{{{field}}}}}"] = data.get(field, "")
+        replacements[f"{{{{{field}}}}}"] = data.get(field, [""])[0]
 
     for (_, placeholder), paragraph in zip(section_prompts, paragraphs):
         replacements[placeholder] = paragraph
 
     replace_placeholders(doc, replacements)
-
     section = doc.sections[-1]
     footer = section.footer
     footer.paragraphs[0].text = f"Report generated by: {psychologist_name}"
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        docx_path = os.path.join(tmpdir, "report.docx")
-        doc.save(docx_path)
+    tmpdir = tempfile.mkdtemp()
+    docx_path = os.path.join(tmpdir, "report.docx")
+    doc.save(docx_path)
 
-        if "pdf" in data:
-            sys = platform.system()
-            pdf_path = os.path.join(tmpdir, "report.pdf")
-            if sys in ["Windows", "Darwin"]:
-                convert(docx_path, pdf_path)
-                return send_file(pdf_path, as_attachment=True, download_name="neuropsych_report.pdf")
-            else:
-                return "PDF conversion is only supported on macOS or Windows environments.", 400
-        else:
-            return send_file(docx_path, as_attachment=True, download_name=f"neuropsych_report_for_{psychologist_name}_about_{data.get('name','')}.docx")
+    if "pdf" in data and data["pdf"]:
+        sys = platform.system()
+        pdf_path = os.path.join(tmpdir, "report.pdf")
+        if sys in ["Windows", "Darwin"]:
+            convert(docx_path, pdf_path)
+            return pdf_path
+
+    return docx_path
 
 if __name__ == "__main__":
     app.run(debug=True)

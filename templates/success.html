@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Report Ready</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #121212;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+    a.button {
+      display: inline-block;
+      background: #007bff;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      margin-top: 20px;
+    }
+    .spinner {
+      margin: 20px auto;
+      width: 40px;
+      height: 40px;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>✅ Payment Successful!</h1>
+  <p>Your report is being generated. This may take up to a minute.</p>
+  <div class="spinner"></div>
+  <p id="downloadMessage" style="display:none;">
+    Your report is ready! <br>
+    <a id="downloadLink" class="button" download>Download Report</a>
+  </p>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+
+    async function checkReport() {
+      const res = await fetch(`/check-report?session_id=${sessionId}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.getElementById("downloadLink");
+        link.href = url;
+        link.download = "neuropsych_report.pdf";
+        document.querySelector(".spinner").style.display = "none";
+        document.getElementById("downloadMessage").style.display = "block";
+      } else {
+        setTimeout(checkReport, 3000); // Retry after delay
+      }
+    }
+
+    checkReport();
+  </script>
+</body>
+</html>
