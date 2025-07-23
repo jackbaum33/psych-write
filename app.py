@@ -90,6 +90,7 @@ def create_checkout():
     session_id = data.get("session_id")
 
     session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
         line_items=[{
             'price_data': {
                 'currency': 'usd',
