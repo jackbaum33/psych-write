@@ -229,11 +229,11 @@
   }
 
   async function submitForm() {
+    const form = document.getElementById("reportForm");
     if (!form.checkValidity()) {
     alert("Please fill in all required fields.");
     return;
   }
-    const form = document.getElementById("reportForm");
     const formData = new FormData(form);
     const sessionId = crypto.randomUUID();  // Generate unique session ID
     formData.append("session_id", sessionId);
