@@ -228,6 +228,44 @@
     testsContainer.appendChild(block);
   }
 
+  async function submitForm() {
+    const form = document.getElementById("reportForm");
+    const formData = new FormData(form);
+    const sessionId = crypto.randomUUID();  // Generate unique session ID
+    formData.append("session_id", sessionId);
+
+    // Hide form, show loading spinner
+    form.style.display = "none";
+    document.getElementById("loading").style.display = "block";
+
+    try {
+      // 1. Store form data on backend
+      const storeRes = await fetch("/store", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!storeRes.ok) throw new Error("Failed to store form data");
+
+      // 2. Create Stripe Checkout session
+      const checkoutRes = await fetch("/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+
+      const { url } = await checkoutRes.json();
+
+      // 3. Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (err) {
+      alert("Something went wrong. Please try again.");
+      console.error(err);
+      form.style.display = "block";
+      document.getElementById("loading").style.display = "none";
+    }
+  }
+
   function addTestBullet(index) {
     const container = document.getElementById(`test_${index}_bullets`);
     const input = document.createElement("input");
